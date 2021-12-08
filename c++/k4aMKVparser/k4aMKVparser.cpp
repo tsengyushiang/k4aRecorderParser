@@ -5,6 +5,22 @@
 #include <k4arecord/playback.h>
 #include <k4arecord/record.h>
 #include<opencv2/opencv.hpp>
+#include <opencv2/core/utils/filesystem.hpp>
+#include <cstdio>
+#include <string>
+#include <cassert>
+template< typename... Args >
+std::string string_sprintf(const char* format, Args... args) {
+    int length = std::snprintf(nullptr, 0, format, args...);
+    assert(length >= 0);
+
+    char* buf = new char[length + 1];
+    std::snprintf(buf, length + 1, format, args...);
+
+    std::string str(buf);
+    delete[] buf;
+    return std::move(str);
+}
 
 class MKVParser {
 
@@ -65,7 +81,7 @@ public:
     };
     ~MKVParser() {
     };
-    void getAlignedRGBD() {
+    void getAlignedRGBD(std::string prefix) {
         int index = 0;
         k4a::capture capture = NULL;
 		while (device_handle.get_next_capture(&capture))
@@ -74,7 +90,12 @@ public:
             k4a::image color_image = capture.get_color_image();
             if (color_image) {
                 cv::Mat image(cv::Size(w, h), CV_8UC4, (void*)color_image.get_buffer(), cv::Mat::AUTO_STEP);
-                cv::imwrite(std::to_string(index) +".color.png", image);
+                cv::imwrite(string_sprintf(prefix.c_str(),index) +".color.png", image);
+                if (index == 1 && !cv::utils::fs::exists(string_sprintf(prefix.c_str(), index) + ".color.png")){
+                    //check images create success
+                    std::cout << std::endl<<"Faild to save frame, folder not exists.";
+                    break;
+                }                
 			}
 
             k4a::image depth_image = capture.get_depth_image();
@@ -82,7 +103,7 @@ public:
 			{
 				transformation.depth_image_to_color_camera(depth_image, &transformed_depth_image);
                 cv::Mat image(cv::Size(w, h), CV_16UC1, (uint16_t*)transformed_depth_image.get_buffer(), cv::Mat::AUTO_STEP);
-                cv::imwrite(std::to_string(index) + ".depth.png", image);
+                cv::imwrite(string_sprintf(prefix.c_str(), index) + ".depth.png", image);
 			}
 
             int barWidth = 30;
@@ -104,12 +125,18 @@ public:
 
 int main(int argc, char** argv)
 {
-    std::cout << "You have entered " << argc
-        << " arguments:" << "\n";
+    if (argc == 3) {
+        MKVParser file(argv[1]);
+        file.getAlignedRGBD(argv[2]);
+    }
+    else {
+        std::cout << "Params is Required : k4aMKVparser.exe <input.mkv> <saveingPrefix>" << std::endl;
+        std::cout << "params example : " << std::endl;
+        std::cout << "<input.mkv> : \"D:/nerf-data/20121202/8cam/6/device0.mkv\"" << std::endl;
+        std::cout << "<saveingPrefix> : ./output/%08d" << std::endl;
+    }
 
-    for (int i = 0; i < argc; ++i)
-        std::cout << argv[i] << "\n";
-
-    MKVParser file(R"(D:\nerf-data\20121202\8cam\6\device0.mkv)");
-    file.getAlignedRGBD();
+    // example
+    //MKVParser file(R"(D:\nerf-data\20121202\8cam\6\device0.mkv)");
+    //file.getAlignedRGBD("%08d");
 }
