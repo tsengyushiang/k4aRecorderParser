@@ -127,3 +127,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+c++/k4aMKVparser/x64/Release/k4aMKVparser.vcxproj.FileListAbsolute.txt
+c++/k4aMKVparser/x64/Release/k4aMKVparser.exe.recipe
+c++/k4aMKVparser/x64/Release/k4aMKVparser.exe

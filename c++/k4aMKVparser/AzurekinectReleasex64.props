@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <IncludePath>.\AzurekinectSDKv1.4.1\include;$(IncludePath)</IncludePath>
+    <_PropertySheetDisplayName>AzurekinectReleasex64</_PropertySheetDisplayName>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <Link>
+      <AdditionalDependencies>.\AzurekinectSDKv1.4.1\lib\amd64\k4a.lib;.\AzurekinectSDKv1.4.1\lib\amd64\k4arecord.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup />
+</Project>
