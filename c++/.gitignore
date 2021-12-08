@@ -391,3 +391,8 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+*.png
+k4aMKVparser/x64/Release/k4aMKVparser.vcxproj.FileListAbsolute.txt
+k4aMKVparser/x64/Release/k4aMKVparser.exe.recipe
+k4aMKVparser/x64/Release/k4aMKVparser.exe
