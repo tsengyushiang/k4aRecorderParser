@@ -393,6 +393,7 @@ FodyWeavers.xsd
 *.sln.iml
 
 *.png
+*.json
 k4aMKVparser/x64/Release/k4aMKVparser.vcxproj.FileListAbsolute.txt
 k4aMKVparser/x64/Release/k4aMKVparser.exe.recipe
 k4aMKVparser/x64/Release/k4aMKVparser.exe
