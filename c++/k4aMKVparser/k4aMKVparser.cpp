@@ -171,8 +171,18 @@ public:
         int index = 0;
         k4a::capture capture = NULL;
         std::vector<nlohmann::json> frames;
-		while (device_handle.get_next_capture(&capture))
-		{
+
+		while (true)
+		{   
+            try {
+                if (device_handle.get_next_capture(&capture)==false) {
+                    break;
+                }
+            }
+            catch (...) {
+                continue;
+            }
+
             nlohmann::json info;
 
             index++;

@@ -146,7 +146,17 @@ def VisIOInSameFrame(imagedis):
         
         out.release()
 
-imagedis=[
-    r"D:\projects\k4aRecorderParser\c++\k4aMKVparser\x64\Release\output\6\6"
-]
-MaskPredFromRGB(imagedis)
+from argparse import ArgumentParser, SUPPRESS
+
+def build_argparser():
+    parser = ArgumentParser(add_help=False)
+    args = parser.add_argument_group('Options')   
+    args.add_argument('-h', '--help', action='help',default='SUPPRESS')
+    # custom command line input parameters       
+    args.add_argument("--folder",type=str,default=None)
+    return parser
+args = build_argparser().parse_args()
+if args.folder:
+    MaskPredFromRGB([args.folder])
+else:
+    print('use --folder to specify process folder.')
