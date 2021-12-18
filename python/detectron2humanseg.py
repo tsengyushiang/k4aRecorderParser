@@ -36,6 +36,8 @@ from detectron2.projects import point_rend
 import cv2
 import numpy as np
 
+from tqdm import tqdm
+
 class Detector:
 
     def __init__(self,model_type):
@@ -113,22 +115,27 @@ def MaskPredFromRGB(imagedis):
 def VisIOInSameFrame(imagedis):
     for folder in imagedis:
         files = glob(os.path.join(folder,'*.png'))        
-        outputfolder = os.path.join(folder,'mask')
+        maskfolder = os.path.join(folder,'mask')
+        refinedmaskfolder = os.path.join(folder,'mask_mostCenter')
 
         outputVideo = os.path.join(folder,'compare.avi')
         fourcc = cv2.VideoWriter_fourcc(*'XVID')
         out = None
-        print(folder)
-        for file in files:
-            outputfile = os.path.join(outputfolder,os.path.basename(file))
-            if not os.path.exists(outputfile):
+        for file in tqdm(files):
+            maskfile = os.path.join(maskfolder,os.path.basename(file))
+            refinedmaskfile = os.path.join(refinedmaskfolder,os.path.basename(file))
+            if not os.path.exists(maskfile):
+                continue
+            elif not os.path.exists(maskfile):
                 continue
             else:
                 input=cv2.imread(file)
-                mask=cv2.imread(outputfile)
+                mask=cv2.imread(maskfile)
+                refinedmask=cv2.imread(refinedmaskfile)
                 bgremoved = cv2.bitwise_and(input, mask)
+                refinedbgremoved = cv2.bitwise_and(input, refinedmask)
 
-                compared = np.vstack((input,bgremoved))
+                compared = np.vstack((input,bgremoved,refinedbgremoved))
                 scale_percent = 50 # percent of original size
                 width = int(compared.shape[1] * scale_percent / 100)
                 height = int(compared.shape[0] * scale_percent / 100)
@@ -154,9 +161,15 @@ def build_argparser():
     args.add_argument('-h', '--help', action='help',default='SUPPRESS')
     # custom command line input parameters       
     args.add_argument("--folder",type=str,default=None)
+    args.add_argument("--vis_only", action='store_true', help='visualize mask result')
     return parser
+
 args = build_argparser().parse_args()
+
 if args.folder:
-    MaskPredFromRGB([args.folder])
+    if args.vis_only:
+        VisIOInSameFrame([args.folder])
+    else :
+        MaskPredFromRGB([args.folder])
 else:
     print('use --folder to specify process folder.')
