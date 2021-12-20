@@ -17,10 +17,6 @@ maskParentfolder=[
     r"D:\projects\k4aRecorderParser\c++\k4aMKVparser\x64\Release\output\6\8"
 ]
 
-maskParentfolder=[
-    r"D:\projects\k4aRecorderParser\c++\k4aMKVparser\x64\Release\output\6\6"
-]
-
 maskfolderkey = "mask_mostCenter"
 
 def depth2Clustering(cropDepth):
@@ -88,7 +84,7 @@ def main():
     for parentfolder in maskParentfolder:
         maskfolder = os.path.join(parentfolder,maskfolderkey)
         maskoutput = os.path.join(parentfolder,"mask_AutoChromakey")
-        if not os.path.exists(filepath):
+        if not os.path.exists(maskoutput):
             os.makedirs(maskoutput)
         files = glob(os.path.join(maskfolder,'*.png'))
         for file in tqdm(files):
@@ -130,7 +126,14 @@ def main():
 
                 # remove outliner in background
                 refinedMask,foregroundMask_bbox = outlinerRemoveDBSCAN(color_in_bbox, cropForegroundMask)
-                # cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.foregroundMask.png"),foregroundMask_bbox)
+
+                backgroundColor = color_in_bbox.copy()
+                backgroundColor[cropForegroundMask>0] = [255,255,255]
+                cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.backgroundColor.png"),backgroundColor)
+
+                backgroundColor = color_in_bbox.copy()
+                backgroundColor[foregroundMask_bbox==0] = [255,255,255]
+                cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.foregroundColor.png"),backgroundColor)
 
                 wholeMask = np.zeros_like(depth).astype(np.uint8)
                 wholeMask[rmin:rmax,cmin:cmax] = foregroundMask_bbox

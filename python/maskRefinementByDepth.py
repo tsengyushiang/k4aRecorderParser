@@ -18,7 +18,7 @@ maskParentfolder=[
 ]
 
 maskParentfolder=[
-    r"D:\projects\k4aRecorderParser\c++\k4aMKVparser\x64\Release\output\6\6"
+    r"D:\projects\k4aRecorderParser\c++\k4aMKVparser\x64\Release\output\6\1"
 ]
 
 maskfolderkey = "mask_mostCenter"
@@ -126,7 +126,7 @@ def main():
     for parentfolder in maskParentfolder:
         maskfolder = os.path.join(parentfolder,maskfolderkey)
         maskoutput = os.path.join(parentfolder,"mask_grabCutRefinedPRBG")
-        if not os.path.exists(filepath):
+        if not os.path.exists(maskoutput):
             os.makedirs(maskoutput)
         files = glob(os.path.join(maskfolder,'*.png'))
         for file in tqdm(files):
