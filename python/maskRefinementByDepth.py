@@ -18,7 +18,7 @@ maskParentfolder=[
 ]
 
 maskParentfolder=[
-    r"D:\projects\k4aRecorderParser\c++\k4aMKVparser\x64\Release\output\6\1"
+    r"D:\projects\k4aRecorderParser\c++\k4aMKVparser\x64\Release\output\6\6"
 ]
 
 maskfolderkey = "mask_mostCenter"
@@ -117,7 +117,7 @@ def grabCutwInitialForegroundMask(color_in_bbox,depth_in_bbox,cropForegroundMask
     bgdModel = np.zeros((1,65),np.float64)
     fgdModel = np.zeros((1,65),np.float64)
     resultLabel, bgdModel, fgdModel = cv2.grabCut(color_in_bbox,descriptLabel_bbox,None,bgdModel,fgdModel,10,cv2.GC_INIT_WITH_MASK)
-    resultMask = np.where((resultLabel==cv2.GC_PR_BGD)|(resultLabel==cv2.GC_BGD),0,1).astype('uint8')
+    resultMask = np.where((resultLabel==cv2.GC_PR_BGD)|(resultLabel==cv2.GC_BGD),0,255).astype('uint8')
 
     return descriptLabel_bbox_inital, resultMask
 
@@ -126,60 +126,68 @@ def main():
     for parentfolder in maskParentfolder:
         maskfolder = os.path.join(parentfolder,maskfolderkey)
         maskoutput = os.path.join(parentfolder,"mask_grabCutRefinedPRBG")
-        os.makedirs(maskoutput)
+        if not os.path.exists(filepath):
+            os.makedirs(maskoutput)
         files = glob(os.path.join(maskfolder,'*.png'))
         for file in tqdm(files):
+            
+            try:
 
-            mask = cv2.imread(file,0)
+                mask = cv2.imread(file,0)
 
-            # calc bbox mask
-            bbox = np.zeros_like(mask)
-            rows = np.any(mask, axis=1)
-            cols = np.any(mask, axis=0)
-            rmin, rmax = np.where(rows)[0][[0, -1]]
-            cmin, cmax = np.where(cols)[0][[0, -1]]
+                # calc bbox mask
+                bbox = np.zeros_like(mask)
+                rows = np.any(mask, axis=1)
+                cols = np.any(mask, axis=0)
+                rmin, rmax = np.where(rows)[0][[0, -1]]
+                cmin, cmax = np.where(cols)[0][[0, -1]]
 
-            # expand bbox for widther range
-            boundary = 10
-            rmin = rmin-boundary
-            rmax = rmax+boundary
-            cmin = cmin-boundary
-            cmax = cmax+boundary
-            bbox[rmin:rmax,cmin:cmax]=255
-            cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.bbox.png"),bbox)
+                # expand bbox for widther range
+                boundary = 10
+                rmin = rmin-boundary
+                rmax = rmax+boundary
+                cmin = cmin-boundary
+                cmax = cmax+boundary
+                bbox[rmin:rmax,cmin:cmax]=255
+                # cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.bbox.png"),bbox)
 
-            # crop color
-            colorfilename = f"{os.path.basename(file).split('.')[0]}.color.png"
-            color = cv2.imread(os.path.join(parentfolder,colorfilename))
-            color_in_bbox = color[rmin:rmax,cmin:cmax]
-            cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.bbox_color.png"),color_in_bbox)
+                # crop color
+                colorfilename = f"{os.path.basename(file).split('.')[0]}.color.png"
+                color = cv2.imread(os.path.join(parentfolder,colorfilename))
+                color_in_bbox = color[rmin:rmax,cmin:cmax]
+                # cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.bbox_color.png"),color_in_bbox)
 
-            # crop depth
-            depthfilename = f"{os.path.basename(file).split('.')[0]}.depth.png"
-            depth = cv2.imread(os.path.join(parentfolder,depthfilename),cv2.IMREAD_UNCHANGED)
-            depth_in_bbox = depth[rmin:rmax,cmin:cmax]
-            cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.bbox_depth.png"),depth_in_bbox)
+                # crop depth
+                depthfilename = f"{os.path.basename(file).split('.')[0]}.depth.png"
+                depth = cv2.imread(os.path.join(parentfolder,depthfilename),cv2.IMREAD_UNCHANGED)
+                depth_in_bbox = depth[rmin:rmax,cmin:cmax]
+                # cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.bbox_depth.png"),depth_in_bbox)
 
-            # clustering to foreground background
-            cropForegroundMask = depth2Clustering(depth_in_bbox)
-            cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.depthKmeans.png"),cropForegroundMask)
+                # clustering to foreground background
+                cropForegroundMask = depth2Clustering(depth_in_bbox)
+                # cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.depthKmeans.png"),cropForegroundMask)
 
-            # crop floor region by clustering mask
-            rmin_f, rmax_f = findFloorBboxfrom2Clustering(cropForegroundMask)
-            color_floor_region = color_in_bbox[rmin_f:rmax_f,:]
-            cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.floor.png"),color_floor_region[:,:,0])
+                # crop floor region by clustering mask
+                rmin_f, rmax_f = findFloorBboxfrom2Clustering(cropForegroundMask)
+                color_floor_region = color_in_bbox[rmin_f:rmax_f,:]
+                # cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.floor.png"),color_floor_region[:,:,0])
 
-            # get refined mask after floor clustering
-            floormask = colorFloorClustering(color_floor_region)
-            cropForegroundMask[rmin_f:rmax_f,:] = floormask
-            cropForegroundMask[depth_in_bbox==0] = 0
-            cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.floorColorKmeans.png"),cropForegroundMask)
+                # get refined mask after floor clustering
+                floormask = colorFloorClustering(color_floor_region)
+                cropForegroundMask[rmin_f:rmax_f,:] = floormask
+                cropForegroundMask[depth_in_bbox==0] = 0
+                # cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.floorColorKmeans.png"),cropForegroundMask)
 
-            # refined mask by grabcut
-            label, grabcutMask = grabCutwInitialForegroundMask(color_in_bbox,depth_in_bbox,cropForegroundMask,boundary=boundary)
-            foreground_color_in_box = color_in_bbox.copy()
-            foreground_color_in_box[grabcutMask==0] = [255,255,255]
-            cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.grabcutlabel.png"),label)      
-            cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.grabcutMask.png"),foreground_color_in_box)
+                # refined mask by grabcut
+                label, grabcutMask = grabCutwInitialForegroundMask(color_in_bbox,depth_in_bbox,cropForegroundMask,boundary=boundary)
+                # cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.grabcutlabel.png"),label)
+                # cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.grabcutMask.png"),foreground_color_in_box)
+
+                wholeMask = np.zeros_like(depth).astype(np.uint8)
+                wholeMask[rmin:rmax,cmin:cmax] = grabcutMask
+                cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}"),wholeMask)
+            
+            except:
+                print("An exception occurred")
 
 main()
