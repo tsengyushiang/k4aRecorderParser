@@ -4,7 +4,7 @@ from tqdm import tqdm
 import shutil
 from glob import glob
 
-from sklearn.cluster import KMeans #pip install scikit-learn
+from sklearn.cluster import KMeans,DBSCAN #pip install scikit-learn
 
 maskParentfolder=[
     r"D:\projects\k4aRecorderParser\c++\k4aMKVparser\x64\Release\output\6\1",
@@ -103,7 +103,8 @@ def grabCutwInitialForegroundMask(color_in_bbox,depth_in_bbox,cropForegroundMask
     # color_in_bbox = cv2.cvtColor(color_in_bbox, cv2.COLOR_BGR2HSV) # covert to HSV
 
     foregroundmask_bbox = depth_in_bbox.astype(np.uint8)
-    descriptLabel_bbox = np.ones_like(foregroundmask_bbox) * cv2.GC_PR_BGD
+    descriptLabel_bbox = np.ones_like(foregroundmask_bbox) * cv2.GC_BGD
+    # descriptLabel_bbox = np.ones_like(foregroundmask_bbox) * cv2.GC_PR_BGD
 
     descriptLabel_bbox[0:boundary,:]= cv2.GC_BGD
     descriptLabel_bbox[-boundary:-1,:]= cv2.GC_BGD
@@ -121,17 +122,51 @@ def grabCutwInitialForegroundMask(color_in_bbox,depth_in_bbox,cropForegroundMask
 
     return descriptLabel_bbox_inital, resultMask
 
+def outlinerRemoveDBSCAN(colorImg, bkgdMask):
+    
+    colorImg = cv2.cvtColor(colorImg, cv2.COLOR_BGR2HLS) # covert to HSV
+    img_float = np.float32(colorImg)
+    colorImg_flat = img_float.reshape((-1,3))
+    bkgdMask_flat = bkgdMask.flatten()
+    img_bkgd_flat = colorImg_flat[bkgdMask_flat==0]
+   
+    dbscan = DBSCAN(eps=3, min_samples=10).fit(img_bkgd_flat)
+    
+    # found most number index
+    idx,count = np.unique(dbscan.labels_,return_counts=True)
+    maxCountClusterId = idx[np.argmax(count)]
+
+    # refined forground mask
+    mask = bkgdMask_flat.copy()
+    maskBG = mask[bkgdMask_flat==0]
+    maskBG[dbscan.labels_==-1] = 255
+    mask[bkgdMask_flat==0]=maskBG
+    mask = mask.astype(np.uint8).reshape((bkgdMask.shape))
+
+    # calc centroid and largest error as threshold later
+    points_of_cluster = img_bkgd_flat[dbscan.labels_==maxCountClusterId,:]
+    centroid_of_cluster = np.mean(points_of_cluster, axis=0)
+    maxErr = np.max(((points_of_cluster-centroid_of_cluster)**2).mean(axis=1))
+    # print(centroid_of_cluster,maxErr)
+    # replace color find in clustering to background
+    maskForground = np.zeros_like(bkgdMask_flat)
+    errOfallColorPixel = ((colorImg_flat-centroid_of_cluster)**2).mean(axis=1)
+    maskForground[errOfallColorPixel>maxErr]=255
+    maskForground = maskForground.astype(np.uint8).reshape((bkgdMask.shape))
+
+    return mask, maskForground
+
 
 def main():
     for parentfolder in maskParentfolder:
         maskfolder = os.path.join(parentfolder,maskfolderkey)
-        maskoutput = os.path.join(parentfolder,"mask_grabCutRefinedPRBG")
+        maskoutput = os.path.join(parentfolder,"mask_grabCutRefinedPRBG_refined")
         if not os.path.exists(maskoutput):
             os.makedirs(maskoutput)
         files = glob(os.path.join(maskfolder,'*.png'))
         for file in tqdm(files):
             
-            try:
+            # try:
 
                 mask = cv2.imread(file,0)
 
@@ -155,17 +190,21 @@ def main():
                 colorfilename = f"{os.path.basename(file).split('.')[0]}.color.png"
                 color = cv2.imread(os.path.join(parentfolder,colorfilename))
                 color_in_bbox = color[rmin:rmax,cmin:cmax]
-                # cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.bbox_color.png"),color_in_bbox)
+                cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.bbox_color.png"),color_in_bbox)
 
                 # crop depth
                 depthfilename = f"{os.path.basename(file).split('.')[0]}.depth.png"
                 depth = cv2.imread(os.path.join(parentfolder,depthfilename),cv2.IMREAD_UNCHANGED)
                 depth_in_bbox = depth[rmin:rmax,cmin:cmax]
-                # cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.bbox_depth.png"),depth_in_bbox)
+                cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.bbox_depth.png"),depth_in_bbox)
 
                 # clustering to foreground background
                 cropForegroundMask = depth2Clustering(depth_in_bbox)
-                # cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.depthKmeans.png"),cropForegroundMask)
+                cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.depthKmeans.png"),cropForegroundMask)
+
+                refinedMask,foregroundMask_bbox = outlinerRemoveDBSCAN(color_in_bbox, cropForegroundMask)
+                cropForegroundMask = refinedMask
+                cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.depthBGrefined.png"),cropForegroundMask)
 
                 # crop floor region by clustering mask
                 rmin_f, rmax_f = findFloorBboxfrom2Clustering(cropForegroundMask)
@@ -180,14 +219,16 @@ def main():
 
                 # refined mask by grabcut
                 label, grabcutMask = grabCutwInitialForegroundMask(color_in_bbox,depth_in_bbox,cropForegroundMask,boundary=boundary)
-                # cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.grabcutlabel.png"),label)
-                # cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.grabcutMask.png"),foreground_color_in_box)
+                cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.grabcutlabel.png"),label)
+                grabcutResult = color_in_bbox.copy()
+                grabcutResult[grabcutMask==0]=[255,255,255]
+                cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.grabcutResult.png"),grabcutResult)
 
                 wholeMask = np.zeros_like(depth).astype(np.uint8)
                 wholeMask[rmin:rmax,cmin:cmax] = grabcutMask
                 cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}"),wholeMask)
             
-            except:
-                print("An exception occurred")
+            # except:
+            #     print("An exception occurred")
 
 main()

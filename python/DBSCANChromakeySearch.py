@@ -17,6 +17,10 @@ maskParentfolder=[
     r"D:\projects\k4aRecorderParser\c++\k4aMKVparser\x64\Release\output\6\8"
 ]
 
+maskParentfolder=[
+    r"D:\projects\k4aRecorderParser\c++\k4aMKVparser\x64\Release\output\6\6"
+]
+
 maskfolderkey = "mask_mostCenter"
 
 def depth2Clustering(cropDepth):
@@ -48,7 +52,7 @@ def depth2Clustering(cropDepth):
 
 def outlinerRemoveDBSCAN(colorImg, bkgdMask):
     
-    colorImg = cv2.cvtColor(colorImg, cv2.COLOR_BGR2HLS) # covert to HSV
+    colorImg = cv2.cvtColor(colorImg, cv2.COLOR_BGR2HSV) # covert to HSV
     img_float = np.float32(colorImg)
     colorImg_flat = img_float.reshape((-1,3))
     bkgdMask_flat = bkgdMask.flatten()
@@ -70,20 +74,23 @@ def outlinerRemoveDBSCAN(colorImg, bkgdMask):
     # calc centroid and largest error as threshold later
     points_of_cluster = img_bkgd_flat[dbscan.labels_==maxCountClusterId,:]
     centroid_of_cluster = np.mean(points_of_cluster, axis=0)
-    maxErr = np.max(((points_of_cluster-centroid_of_cluster)**2).mean(axis=1))
-    # print(centroid_of_cluster,maxErr)
+    allError = abs(points_of_cluster-centroid_of_cluster)
+    maxHSVerr = np.max(allError,axis=0)
+    # print(centroid_of_cluster,maxHSVerr)
     # replace color find in clustering to background
     maskForground = np.zeros_like(bkgdMask_flat)
-    errOfallColorPixel = ((colorImg_flat-centroid_of_cluster)**2).mean(axis=1)
-    maskForground[errOfallColorPixel>maxErr]=255
+    errOfallColorPixel = abs(colorImg_flat-centroid_of_cluster)
+    maskForground[errOfallColorPixel[:,0]>maxHSVerr[0]]=255
+    maskForground[errOfallColorPixel[:,1]>maxHSVerr[1]]=255
+    maskForground[errOfallColorPixel[:,2]>maxHSVerr[2]]=255
     maskForground = maskForground.astype(np.uint8).reshape((bkgdMask.shape))
 
-    return mask, maskForground
+    return mask, maskForground,centroid_of_cluster,maxHSVerr
 
 def main():
     for parentfolder in maskParentfolder:
         maskfolder = os.path.join(parentfolder,maskfolderkey)
-        maskoutput = os.path.join(parentfolder,"mask_AutoChromakey")
+        maskoutput = os.path.join(parentfolder,"mask_AutoChromakey_HSV_seperateThreshold")
         if not os.path.exists(maskoutput):
             os.makedirs(maskoutput)
         files = glob(os.path.join(maskfolder,'*.png'))
@@ -125,7 +132,15 @@ def main():
                 # cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.depthKmeans.png"),cropForegroundMask)
 
                 # remove outliner in background
-                refinedMask,foregroundMask_bbox = outlinerRemoveDBSCAN(color_in_bbox, cropForegroundMask)
+                refinedMask,foregroundMask_bbox,MeanColor,maxHSVerr = outlinerRemoveDBSCAN(color_in_bbox, cropForegroundMask)
+                
+                foundColor = color_in_bbox.copy()
+                foundColor[:50,:50,None] = MeanColor + maxHSVerr
+                foundColor[50:100,50:100,None] = MeanColor - maxHSVerr
+                foundColor[100:150,100:150,None] = MeanColor + maxHSVerr
+                foundColor[150:200,150:200,None] = MeanColor - maxHSVerr
+                foundColor = cv2.cvtColor(foundColor, cv2.COLOR_HSV2BGR)
+                cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.found.png"),foundColor)
 
                 backgroundColor = color_in_bbox.copy()
                 backgroundColor[cropForegroundMask>0] = [255,255,255]
