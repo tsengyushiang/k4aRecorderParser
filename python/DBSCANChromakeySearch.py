@@ -17,10 +17,6 @@ maskParentfolder=[
     r"D:\projects\k4aRecorderParser\c++\k4aMKVparser\x64\Release\output\6\8"
 ]
 
-maskParentfolder=[
-    r"D:\projects\k4aRecorderParser\c++\k4aMKVparser\x64\Release\output\6\6"
-]
-
 maskfolderkey = "mask_mostCenter"
 
 def depth2Clustering(cropDepth):
@@ -80,6 +76,7 @@ def outlinerRemoveDBSCAN(colorImg, bkgdMask):
     # replace color find in clustering to background
     maskForground = np.zeros_like(bkgdMask_flat)
     errOfallColorPixel = abs(colorImg_flat-centroid_of_cluster)
+
     maskForground[errOfallColorPixel[:,0]>maxHSVerr[0]]=255
     maskForground[errOfallColorPixel[:,1]>maxHSVerr[1]]=255
     maskForground[errOfallColorPixel[:,2]>maxHSVerr[2]]=255
@@ -90,7 +87,7 @@ def outlinerRemoveDBSCAN(colorImg, bkgdMask):
 def main():
     for parentfolder in maskParentfolder:
         maskfolder = os.path.join(parentfolder,maskfolderkey)
-        maskoutput = os.path.join(parentfolder,"mask_AutoChromakey_HSV_seperateThreshold")
+        maskoutput = os.path.join(parentfolder,"mask_AutoChromakey_MaxContour")
         if not os.path.exists(maskoutput):
             os.makedirs(maskoutput)
         files = glob(os.path.join(maskfolder,'*.png'))
@@ -133,25 +130,34 @@ def main():
 
                 # remove outliner in background
                 refinedMask,foregroundMask_bbox,MeanColor,maxHSVerr = outlinerRemoveDBSCAN(color_in_bbox, cropForegroundMask)
+
+                kernel = np.ones((3,3), np.uint8)
+                foregroundMask_bbox = cv2.erode(foregroundMask_bbox, kernel, iterations = 2)
+
+                contours,hierarchy = cv2.findContours(foregroundMask_bbox,cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
                 
-                foundColor = color_in_bbox.copy()
-                foundColor[:50,:50,None] = MeanColor + maxHSVerr
-                foundColor[50:100,50:100,None] = MeanColor - maxHSVerr
-                foundColor[100:150,100:150,None] = MeanColor + maxHSVerr
-                foundColor[150:200,150:200,None] = MeanColor - maxHSVerr
-                foundColor = cv2.cvtColor(foundColor, cv2.COLOR_HSV2BGR)
-                cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.found.png"),foundColor)
+                # draw new mask
+                max_area = -1
+                max_index = 0
+                for i in range(len(contours)):
+                    area = cv2.contourArea(contours[i])
+                    if area>max_area:
+                        max_area = area
+                        max_index = i
+            
+                foregroundMask_bbox_MaxContour = np.zeros_like(foregroundMask_bbox)
+                for i in range(len(contours)):
+                    if max_index == i:
+                        cv2.drawContours(foregroundMask_bbox_MaxContour,[contours[i]],-1,(255,255,255),-1)
+                    else:
+                        cv2.drawContours(foregroundMask_bbox_MaxContour,[contours[i]],-1,(0,0,0),-1)
 
-                backgroundColor = color_in_bbox.copy()
-                backgroundColor[cropForegroundMask>0] = [255,255,255]
-                cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.backgroundColor.png"),backgroundColor)
-
-                backgroundColor = color_in_bbox.copy()
-                backgroundColor[foregroundMask_bbox==0] = [255,255,255]
-                cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.foregroundColor.png"),backgroundColor)
+                foregroundColor = color_in_bbox.copy()
+                foregroundColor[foregroundMask_bbox_MaxContour==0] = [255,255,255]
+                cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}.foregroundColor.png"),foregroundColor)
 
                 wholeMask = np.zeros_like(depth).astype(np.uint8)
-                wholeMask[rmin:rmax,cmin:cmax] = foregroundMask_bbox
+                wholeMask[rmin:rmax,cmin:cmax] = foregroundMask_bbox_MaxContour
                 cv2.imwrite(os.path.join(maskoutput,f"{os.path.basename(file)}"),wholeMask)
             except:
                 print("An exception occurred")

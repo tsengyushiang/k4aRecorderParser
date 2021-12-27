@@ -41,6 +41,11 @@ Device started
 
 k4arecorder.exe --external-sync master -e -8 -r 5 -l 10 master.mkv
 ```
+# FFmpeg parse to normal mp4
+
+```
+ffmpeg.exe -i test.mkv -map 0:0 -vsync 0 -c:v libx264 -vf "fps=25,format=yuv420p" out.mp4
+```
 # Parse Images Quick start
 
 ```
